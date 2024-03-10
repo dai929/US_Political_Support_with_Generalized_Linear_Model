@@ -15,4 +15,4 @@ The repo is structured as:
 -   `inputs/sketches` contains a few quick sketches of the dataset and graphs of what we expect from the analysis.
 -   `outputs/data` contains the cleaned dataset that was constructed.
 -   `outputs/paper` contains the files used to generate the paper, including the Quarto document and reference bibliography file, as well as the PDF of the paper. 
--   `scripts` contains the R scripts used to simulate, read, clean and test data, and model.
+-   `scripts` contains the R scripts used to simulate, download, clean and test data, and model.
