@@ -1,4 +1,4 @@
-# The Use of Logistic Regression Model in Political Support: United States Post-Election Survey, 2016
+# US Political Support in 2016 Presidential Election: Preferences Based on Gender and Employment Status
 
 ## Overview
 
