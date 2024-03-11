@@ -1,0 +1,300 @@
+---
+title: "US Political Support in 2016 Presidential Election: Preferences Based on Gender and Employment Status"
+author: "Daisy Huo"
+thanks: "Code and data are available at: https://github.com/dai929/US_Political_Support_with_Generalized_Linear_Model.git"
+date: today
+date-format: long
+abstract: "This paper uses the methodology of the logistic regression model to analyze the effect of gender and employment status on political preferences in the context of the 2016 US presidential election. For actual data, we will look at the 2016 Cooperative Congressional Election Study (CCES), which contains a nationally representative sample of 64,000 respondents. The findings reveal that women, full-time workers and students demonstrate a higher tendency to vote for Donald Trump over Hillary Clinton. This study serves to provide solid evidence for further analysis, aiming to improve the accuracy of political forecasting and the governance decision-making process."
+format: pdf
+number-sections: true
+bibliography: references.bib
+---
+
+```{r}
+#| include: false
+#| warning: false
+#| message: false
+
+### Workspace setup ###
+library(arrow)
+library(dataverse)
+library(here)
+library(janitor)
+library(knitr)
+library(marginaleffects)
+library(modelsummary)
+library(readr)
+library(rstanarm)
+library(tidybayes)
+library(tidyverse)
+```
+
+# Introduction {#sec-intro}
+
+Given that this year marks the 60th quadrennial United States presidential election, understanding political support and voter behaviour has never been more important. Former US president Donald Trump recently announced his candidacy for another non-consecutive presidential term. However, the New Yorker once harshly commented on Trump's victory to the presidency in 2016 as "an American tragedy" [@remnick_2016]. Taking all of these diverse public opinions into consideration, contemporary political scientists look forward to using the regression model of past elections to forecast the next election cycle. This is known as political forecasting. Continued onward in this paper, we will explore the exact method of the logistic regression in an effort to identify some factors that influenced US political support.
+
+Numerous socio-demographic characteristics, including gender, education, race, employment, marital status, religion, family income, and citizenship, all had a substantial impact on the outcomes of the pre- and post-election polls as well as a majority of online surveys [@ansolabehere_schaffner_luks_2017]. Moreover, Formplus @formplus_blog_2021 emphasized the significance of including profile questions in surveys in order to have a better understanding of sample observations, categorize respondents into different sub-groups and, more importantly, ensure a fairly represented collection process. For instance, we all know that gender and race are sensitive topics, which are used to clarify one's identity and cultural background, while education and employment status are also the two crucial indicators of respondents' socio-economic levels, which may play an essential role on their perceptions of political issues. Hence, by examining the relationship between political support and socio-demographic factors, we are able to provide a more sophisticated understanding of voter behaviour. Specifically, the intersection of gender and employment status has not yet received as much attention as it should and is worth exploring.
+
+Aiming to fill this gap, we carefully reviewed and analyzed the 2016 Cooperative Congressional Election Study (CCES) [@CCES2016] that was gathered throughout the 2016 US presidential campaign. Through the measurement of our estimand, the average effect of gender and employment status on political support, and the use of the logistic regression model, considerable patterns on presidential preference for Trump were uncovered. The paper proceeds by first outlining all variables, introducing the purpose and aspects of data cleaning and presenting summary statistics between predictors under @sec-data. The following @sec-model specifies a generalized linear regression model to estimate the parameters, applying the Bayesian approach with the help of `rstanarm` package [@Rrsanarm]. Subsequently, the results of the model and the main findings are discussed under @sec-result and @sec-discuss, utilizing summary statistics and a variety of visual representations of numerical data. Overall, within the historical context of the 2016 US Presidential Election, this analysis maintains a focus on exploring the effect of gender and employment status on political preferences, which contributes to a deeper understanding of the socio-demographic factors shaping electoral behaviour in contemporary political science.
+
+# Data {#sec-data}
+
+The dataset utilized in this paper is the 2016 Cooperative Congressional Election Study (CCES) Common Content [@CCES2016], taken from Harvard Dataverse. Data was collected, cleaned, and analyzed using the statistical programming software R [@citeR], with additional support from R packages `arrow` [@Rarrow], `dataverse` [@Rdataverse], `here` [@Rhere], `janitor` [@Rjanitor], `knitr` [@Rknitr], `marginaleffects` [@Rmarginaleffects], `modelsummary` [@Rmodelsummary], `readr` [@Rreadr], `rstanarm` [@Rrsanarm], `tidybayes` [@Rtidybayes], and `tidyverse` [@Rtidyverse].
+
+## Introduction to Dataset
+
+The 2016 Cooperative Congressional Election Study (CCES) [@CCES2016], a well-established annual survey of US political choices since 2005, recorded a critical nationally representative sample of 64,000 American adults, whose socio-demographic characteristics and political opinions were captured before and after the election. Besides the dataset, a full guide and codebook to the common content [@ansolabehere_schaffner_luks_2017] was attached as well. There are five components to the 2016 CCES common content: sample identifiers, profile questions, pre-election questions, post-election questions, and contextual data. In addition, the sampling methodology, detailed in @ansolabehere_schaffner_luks_2017, uses YouGov's matched random sample methodology, and the goal is to find the closest matching respondent to the selected member of the target sample.
+
+Choosing the CCES dataset for the year 2016 holds particular significance due to its alignment with the 58th quadrennial United States presidential election, which marks a pivotal moment in US politics. Along with the rest of the globe, the United States witnessed a highly heated, competitive, and dramatic presidential campaign that year. A thorough examination of the factors influencing political support may help to explain the astonishing victory of a celebrity businessman winning over the former US Secretary of State.
+
+## Variables of Interest
+
+To begin with, once `dataverse` [@Rdataverse] has been installed and loaded, we then apply the function `get_dataframe_by_name()` to access the 2016 CCES dataset. Variables that are of interest to us are selected using `select()` from `dplyr` [@Rdplyr] which was loaded as part of the `tidyverse` [@Rtidyverse].
+
+Using the codebook to guide our data cleaning process, we only want respondents who are registered to vote. These are observations in which the variable "votereg" is 1. For now, we are only interested in those who voted for either Trump or Clinton. The respondent voted for Trump when the variable "CC16_410a" is 1 and voted for Clinton when it is 2. The dataset provides information on gender, and when the variable "gender" is 1, it indicates "male", and when it is 2, it indicates "female". Finally, according to the codebook, the variable "employ" is a variable from 1 to 8, in decreasing level of stability of employment status.
+
+```{r}
+#| message: false
+#| echo: false
+
+### Analyze variable ###
+cleaned_cces2016 <-
+  read_parquet(here::here("outputs/data/cces2016_analysis.parquet"))
+
+cleaned_cces2016 |>
+  count(voted_for) |>
+  mutate(
+    proportion = n / sum(n),
+    proportion = round(proportion, digits = 2)
+  ) |>
+  kable(
+    caption = "Respondents categorized by presidential preference",
+    linesep = "",
+    booktabs = TRUE
+  )
+```
+
+```{r}
+#| message: false
+#| echo: false
+
+### Analyze variable ###
+cleaned_cces2016 |>
+  count(gender) |>
+  mutate(
+    proportion = n / sum(n),
+    proportion = round(proportion, digits = 2)
+  ) |>
+  kable(
+    caption = "Respondents categorized by gender",
+    linesep = "",
+    booktabs = TRUE
+  )
+```
+
+```{r}
+#| message: false
+#| echo: false
+
+### Analyze variable ###
+cleaned_cces2016 |>
+  count(employment) |>
+  mutate(
+    proportion = n / sum(n),
+    proportion = round(proportion, digits = 2)
+  ) |>
+  kable(
+    caption = "Respondents categorized by employment status",
+    linesep = "",
+    booktabs = TRUE
+  )
+```
+
+Each of Tables 1, 2 and 3 presents counts and proportion of respondents categorized by the three variables, "voted_for", "gender", and "employment". Table 1 displays the voter preference distribution and reveals that the percentage of people who supported Hillary Clinton (51%) and Donald Trump (49%) were nearly equally split. Table 2 presents voter demographics by gender, which is noteworthy that female voters constitute a smaller majority (54%) in comparison to male voters (46%). Table 3 offers information on the employment status of respondents. The data indicates that the majority is made up of full-time workers (38%), followed by retirees (35%). Part-time workers, the jobless, and homemakers comprise comparatively smaller groups.
+
+## Relationship between Variables
+
+```{r}
+#| message: false
+#| echo: false
+
+### Analyze variable ###
+cleaned_cces2016 |>
+  tabyl(gender, voted_for) |>
+  adorn_percentages("col") |>
+  adorn_pct_formatting(digits = 0) |>
+  adorn_ns() |>
+  adorn_title() |>
+  kable(
+    caption = "The frequency distribution of gender over respondents voted in the 2016 CCES",
+    linesep = "",
+    booktabs = TRUE
+  )
+
+cleaned_cces2016 |>
+  tabyl(employment, voted_for) |>
+  adorn_percentages("col") |>
+  adorn_pct_formatting(digits = 0) |>
+  adorn_ns() |>
+  adorn_title() |>
+  kable(
+    caption = "The frequency distribution of employment status over respondents voted in the 2016 CCES",
+    linesep = "",
+    booktabs = TRUE
+  )
+```
+
+The association between voter preferences in the 2016 Cooperative Congressional Election Study (CCES) dataset and the two socio-demographic factors, gender and employment status, is depicted in the following two frequency distribution graphs. Table 4 shows a significant gender gap in the voters' choices for president, with males favoring Trump (52%), and women backing Clinton (60%) in the polls. Regarding job status, however, Table 5 reveals that of the two largest groups, full-time employees (40%) and retirees (38%) favour Clinton.
+
+```{r, fig.cap="Distribution of employment status, and vote preference, in the 2016 CCES dataset"}
+#| message: false
+#| echo: false
+
+### Graph variable ###
+cleaned_cces2016 |>
+  ggplot(mapping = aes(x = employment, fill = voted_for)) +
+  geom_bar(position = "dodge2") +
+  coord_flip() +
+  labs(x = "Employment Status", y = "Number of respondents", fill = "Voted for") +
+  theme(legend.position = "bottom")
+```
+
+Figure 1 illustrates a bar chart depicting the distribution of survey respondents in the 2016 presidential election, grouped by their employment status and political allegiance to either Trump (depicted in red) or Clinton (shown in blue). The data reveals that the majority of full-time workers tend to favour Clinton while a significant portion of retirees, towards Trump. Apart from homemakers and those unemployed individuals, other groups display a stronger preference for Clinton over Trump.
+
+```{r, fig.cap="The distribution of presidential preferences, by gender and employment status"}
+#| message: false
+#| echo: false
+
+### Graph data ###
+cleaned_cces2016 |>
+  ggplot(aes(x = employment, fill = voted_for)) +
+  stat_count(position = "dodge") +
+  facet_wrap(facets = vars(gender)) +
+  theme_minimal() +
+  labs(
+    x = "Employment Status",
+    y = "Number of respondents",
+    fill = "Voted for"
+  ) +
+  coord_flip() +
+  scale_fill_brewer(palette = "Set1") +
+  theme(legend.position = "bottom")
+```
+
+Lastly, the distribution of presidential preferences by gender and employment status can be seen in Figure 2. For each level of employment status category, it shows the proportion of respondents who supported Trump (red) and Clinton (blue), broken down into two bar charts by gender. Full-time workers are the biggest group of respondents for both genders, with females preferring Clinton and males preferring Trump. Among females, only homemakers indicated a small percentage of support for Trump, while among males, the population that was permanently disabled, retired, unemployed and part-time and full-time employees all showed a stronger preference for Trump.
+
+# Model {#sec-model}
+
+The model that we are interested in is:
+
+$$
+y_i|π_i \sim Bern(π_i)
+$$
+
+$$
+logit(π_i) = \beta_0 + \beta_1 \times gender_i + \beta_2 \times employment_i
+$$
+
+$$
+\beta_0 \sim Normal(0, 2.5)
+$$
+
+$$
+\beta_1 \sim Normal(0, 2.5)
+$$
+
+$$
+\beta_2 \sim Normal(0, 2.5)
+$$
+
+where $y_i$ is the political preference of the respondent and is equal to 1 if Trump and 0 if Clinton, $gender_i$ is the gender of the respondent, and $employment_i$ is the education of the respondent. We will build this logistic regression model using `stan_glm()` from `rstanarm` [@Rrsanarm]. Rather than using the entire dataset, we will fit the model on a random sample of 2,000 observations in order to save runtime.
+
+The estimated mean on the gender "Males" is -0.6, which is the average change in the log-odds of respondents who voted for Trump with observing one extra man. This coefficient is negative, meaning a decrease of 0.6. Similar interpretations apply to the rest predictors. Additionally, we translate our estimate into the probability of voting for Trump. We can then add the implied probability for each observation using `predictions()` from `marginaleffects` [@Rmarginaleffects]. The probability that our model implies is graphed in Figure 3 using a scatterplot.
+
+```{r, fig.cap="Logistic regression probability of whether a respondent voted for Trump or Clinton based on employment status"}
+#| message: false
+#| echo: false
+#| warning: false
+#| label: fig-scatterplot
+#| fig-subcap: 
+#|   - "Male"
+#|   - "Female"
+#| layout-ncol: 1
+
+### Model ###
+political_preferences <-
+  readRDS(here::here(file = "outputs/data/political_preferences.rds"))
+
+preferences_predictions <-
+  predictions(political_preferences) |>
+  as_tibble() |>
+  filter(gender == "Male")
+
+preferences_predictions |>
+  mutate(voted_for = factor(voted_for)) |>
+  ggplot(aes(x = employment, y = estimate, color = voted_for) ) +
+  geom_jitter(width = 0.01, height = 0.01, alpha = 0.3) +
+  labs(
+    x = "The average effect of employment status",
+    y = "Estimated probability voted for Trump",
+    color = "Actually voted for Trump"
+  ) +
+  theme_classic() +
+  scale_color_brewer(palette = "Set1") +
+  theme(legend.position = "bottom") +
+  theme(axis.text=element_text(size=6))
+
+preferences_predictions <-
+  predictions(political_preferences) |>
+  as_tibble() |>
+  filter(gender == "Female")
+
+preferences_predictions |>
+  mutate(voted_for = factor(voted_for)) |>
+  ggplot(aes(x = employment, y = estimate, color = voted_for)) +
+  geom_jitter(width = 0.01, height = 0.01, alpha = 0.3) +
+  labs(
+    x = "The average effect of employment status",
+    y = "Estimated probability voted for Trump",
+    color = "Actually voted for Trump"
+  ) +
+  theme_classic() +
+  scale_color_brewer(palette = "Set1") +
+  theme(legend.position = "bottom") +
+  theme(axis.text=element_text(size=6))
+```
+
+# Results {#sec-result}
+
+```{r}
+#| message: false
+#| echo: false
+#| warning: false
+
+### Model ###
+modelsummary(
+  list(
+    "Support Trump" = political_preferences
+  ),
+  statistic = "mad",
+  title = "Whether a respondent is likely to vote for Trump based on their gender and employment status"
+  )
+```
+
+Table 6, the model summary, presented below depicts the likelihood of a respondent voting for Trump based on their gender and employment status. The intercept, inferred as a female and full-time employee, suggests a baseline likelihood of 0.550 for the reference group. The predictor of gender "Male" is related to a lower probability of voting for Trump, indicated by a coefficient of -0.570. Except for students showing a strong positive association of 1.361, all other predictors of employment status show a negative association with presidential support for Trump.
+
+# Discussion {#sec-discuss}
+
+Based on a thorough data cleaning and examination of the 2016 Cooperative Congressional Election Study (CCES), this paper employs logistic regression model to explore how gender and employment status impact political preferences during the 2016 US presidential election. The findings uncover some notable patterns in voter behaviour. Table 6 reveals that, surprisingly, females, full-time workers and students exhibit a higher probability of voting for Trump, while Figure 2 displays a relatively opposite and varied result in which Trump actually received a larger proportion of votes from males, homemakers, and those retired or unemployed population. Despite some slight confusion, the study contributes to a better understanding of the factors that potentially shape election outcomes and offers some degree of valuable insights for future studies on historical electoral trends, which aim to increase the precision of political forecasting.
+
+One notable takeaway from this paper is the gender gap evident in the 2016 presidential election. Our discovery highlights how gender can be a powerful factor impacting political views and opinions. This stresses the necessity of taking gender dynamics into account when investigating political support and election results. Such gender gap and preferences between women and men appears to become the largest ever since the past 11 presidential contests [@chaturvedi_2016]. There are numerate collective reasons causing this phenomenon, including party affiliation, different attitudes toward political issues and candidate appealing. Together, these factors are worth investigating for politicians, political scientists and governance decision-makers, who wish to summarize and predict voter profiles and modify their tactics accordingly.
+
+Another interesting takeaway is the correlation between employment status and presidential preferences, where certain demographic groups demonstrate a stronger tendency toward Trump. Generally, full-time employees and retirees make up the largest two population among the electorate and therefore have greater voice during elections. Reasons behind how various employment status groups behave differently include opinions on the government policies regarding social welfare, perceptions of different parties' ideologies on employment-related solutions.
+
+Undoubtedly, there are some shortcomings in this paper that we need to consider. Firstly, we are missing some observations in our dataset. In particular, we omitted respondents who did not registered to vote and those who did not vote for Trump or Clinton. When building the logistic regression model, we only chose to use 2,000 observations in order to decrease running time. This could potentially create an issue of biased result. In addition, our study typically concentrates on the 2016 US presidential election, so there can be limitations. Whether our results and findings are applicable to the presidential election in different years, or all election scenarios as whole, still requires further studies.
+
+There are a number of directions that future research may pursue. For instance, political scientists may pay attention to the fundamental causes of the gender gap in presidential preferences that we have noted before. Analysis investigating the relationship between employment status and other socio-demographic factors such as family income may help to explain respondents' views on socio-economic issues and their political choices. Furthermore, the logistic regression model utilized in this paper could be improved. All things considered, future studies has the potential to improve the efficiency and precision of regression model on political forecasting and deepen our comprehension of the socio-demographic factors impacting political support.
+
+\newpage
+
+# References {#sec-ref}
